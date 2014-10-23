@@ -17,7 +17,7 @@ namespace TD
 
         public float HitPointsCurrent { get; set; }
         public int Armor { get; set; }
-        public float Distance { get; set; }
+        public float PassedDistance { get; set; }
         public bool IsAlive { get; set; }
         public bool IsPoisoned { get; set; }
         public bool IsFrozen { get; set; }
@@ -65,7 +65,7 @@ namespace TD
             this._lifeTexture = lifeTexture;
             this.HitPointsCurrent = hitPointsMax;
             this.Armor = armor;
-            this.Distance = 0f;
+            this.PassedDistance = 0f;
             this.MovingPath = movingPath;
             this.IsAlive = true;
             this.IsPoisoned = false;
@@ -85,7 +85,7 @@ namespace TD
             this._lifeTexture = lifeTexture;
             this.HitPointsCurrent = hitPointsMax;
             this.Armor = armor;
-            this.Distance = 0f;
+            this.PassedDistance = 0f;
             this.MovingPath = movingPath;
             this.IsAlive = true;
             this.IsPoisoned = false;
@@ -150,7 +150,7 @@ namespace TD
                 else
                     position.Y += (_nextPointPath - position).Y;
 
-                Distance = Distance + Math.Max(Math.Abs(Speed.X * (1 - Freeze) * _movingVect.X), Math.Abs(Speed.Y * (1 - Freeze) * _movingVect.Y));  //Math.Abs(speed.X * (1 - freeze) * movingVect.X) + Math.Abs(speed.Y * (1 - freeze) * movingVect.Y);
+                PassedDistance = PassedDistance + Math.Max(Math.Abs(Speed.X * (1 - Freeze) * _movingVect.X), Math.Abs(Speed.Y * (1 - Freeze) * _movingVect.Y));  //Math.Abs(speed.X * (1 - freeze) * movingVect.X) + Math.Abs(speed.Y * (1 - freeze) * movingVect.Y);
 
                 if (HitPointsCurrent <= 0) IsAlive = false;
             }

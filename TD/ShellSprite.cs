@@ -25,16 +25,13 @@ namespace TD
         private readonly double _damageRadius;
         private readonly float _damage;
 
+        private Vector2 _shellFlyingVector = new Vector2(0, 0);
+
         public bool IsFly { get; set; }
 
         public override Vector2 Direction
         {
             get { return Speed; }
-        }
-
-        protected bool Collide()
-        {
-            return _goal.CollisionRectangleMonster.Contains((int)position.X, (int)position.Y);
         }
 
         public ShellSprite(Texture2D textureImage, Vector2 position,
@@ -85,69 +82,91 @@ namespace TD
 
         public override void Update(GameTime gameTime, Rectangle clientBounds)
         {
-            var arMon = new Vector2(0, 0);
-
-            if (_goal == null)
+            if (_goal == null || _goal.IsAlive == false)
             {
                 IsFly = false;
             }
             else
             {
-                if (_goal.IsAlive == false)
-                {
-                    IsFly = false;
-                }
+                _shellFlyingVector.X = -((position.X) - (_goal.CollisionRectangleMonster.Center.X));
+                _shellFlyingVector.Y = -((position.Y) - (_goal.CollisionRectangleMonster.Center.Y));
 
-                arMon.X = -((position.X) - (_goal.CollisionRectangleMonster.Center.X));
-                arMon.Y = -((position.Y) - (_goal.CollisionRectangleMonster.Center.Y));
+                float speedT = Math.Min(Speed.X, _shellFlyingVector.Length());
 
-                float speedT = Math.Min(Speed.X, arMon.Length());
+                _shellFlyingVector.Normalize();
 
-                arMon.Normalize();
-
-                _alpha = (float)Math.Acos(arMon.X / arMon.Length());
-
-                if (arMon.Y < 0)
-                    _alpha = (float)(2 * Math.PI - _alpha);
-
-                position.X += speedT * arMon.X;
-                position.Y += speedT * arMon.Y;
+                UpdateAlpha();
+                UpdatePosition(speedT);
 
                 if (Collide())
                 {
-                    _goal.HitPointsCurrent = _goal.HitPointsCurrent + ((_goal.Armor - _damage < 0) ? (_goal.Armor - _damage) : (-1));
+                    var damageToDeal = _damage > _goal.Armor ? _damage - _goal.Armor : 1;
+                    _goal.HitPointsCurrent -= damageToDeal;
                     if (_damageRadius > 0.0)
-                        foreach (MonsterSprite s in _monsterSpriteList)
-                        {
-                            double tempD = Math.Sqrt(Math.Pow(Position.X - s.Position.X, 2) + Math.Pow(Position.Y - s.Position.Y, 2));
-                            if (tempD <= _damageRadius)
-                                s.HitPointsCurrent = s.HitPointsCurrent + ((_goal.Armor - _damage < 0) ? (_goal.Armor - _damage) : (-1));
-                        }
-                    if (_goal.HitPointsCurrent < 0)
-                        _goal.HitPointsCurrent = 0;
-                    if (_isArmor)
                     {
-                        _goal.Armor -= _decArmor;
+                        DealDamageByAoe(damageToDeal);
                     }
-                    if (_isIce)
-                    {
-                        _goal.Freeze = _freeze;
-                        _goal.IsFrozen = true;
-                        _goal.FrozenTime = gameTime.TotalGameTime.TotalSeconds;
-                        _goal.FrozenPeriod = _frozenPeriod;
-                    }
-                    if (_isPoison)
-                    {
-                        _goal.PoisonDamagePerSecond = (int) (_poisonDamagePerSecond * _damage);
-                        _goal.PoisonedPeriod = _poisonPeriod;
-                        _goal.PoisonedTime = gameTime.TotalGameTime.TotalSeconds;
-                        _goal.IsPoisoned = true;
-                    }
+                    ApplySpecialEffectsToGoal(gameTime);
                     IsFly = false;
-
                 }
             }
             base.Update(gameTime, clientBounds);
+        }
+
+        private void UpdateAlpha()
+        {
+            _alpha = (float) Math.Acos(_shellFlyingVector.X/_shellFlyingVector.Length());
+
+            if (_shellFlyingVector.Y < 0)
+            {
+                _alpha = (float) (2*Math.PI - _alpha);
+            }
+        }
+
+        private void UpdatePosition(float speedT)
+        {
+            position.X += speedT*_shellFlyingVector.X;
+            position.Y += speedT*_shellFlyingVector.Y;
+        }
+
+        protected bool Collide()
+        {
+            return _goal.CollisionRectangleMonster.Contains((int)position.X, (int)position.Y);
+        }
+
+        private void DealDamageByAoe(float damageToDeal)
+        {
+            foreach (MonsterSprite monster in _monsterSpriteList)
+            {
+                double distanceToMonster = Math.Sqrt(Math.Pow(Position.X - monster.Position.X, 2) +
+                                                     Math.Pow(Position.Y - monster.Position.Y, 2));
+                if ((distanceToMonster <= _damageRadius) && !monster.Equals(_goal))
+                {
+                    monster.HitPointsCurrent -= damageToDeal;
+                }
+            }
+        }
+
+        private void ApplySpecialEffectsToGoal(GameTime gameTime)
+        {
+            if (_isArmor)
+            {
+                _goal.Armor -= _decArmor;
+            }
+            if (_isIce)
+            {
+                _goal.Freeze = _freeze;
+                _goal.IsFrozen = true;
+                _goal.FrozenTime = gameTime.TotalGameTime.TotalSeconds;
+                _goal.FrozenPeriod = _frozenPeriod;
+            }
+            if (_isPoison)
+            {
+                _goal.PoisonDamagePerSecond = (int) (_poisonDamagePerSecond*_damage);
+                _goal.PoisonedPeriod = _poisonPeriod;
+                _goal.PoisonedTime = gameTime.TotalGameTime.TotalSeconds;
+                _goal.IsPoisoned = true;
+            }
         }
 
         public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)

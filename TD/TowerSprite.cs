@@ -13,7 +13,7 @@ namespace TD
         private readonly Texture2D _zone;
         private readonly Texture2D _shell;
         private Vector2 _shellPosition;
-        private Boolean _captureFlag = false;
+        private Boolean _isMonsterCaptured = false;
         private readonly Boolean _isArmor = false;
         private readonly Boolean _isPoison = false;
         private readonly Boolean _isIce = false;
@@ -125,8 +125,6 @@ namespace TD
                     frameSize.X, frameSize.Y);
             }
         }
-
-
 
         public void IncreaseRadius()
         {
@@ -274,34 +272,129 @@ namespace TD
             this.DamageRadiusUpgradeCost = tower.DamageRadiusUpgradeCost;
         }
 
+        public override void Update(GameTime gameTime, Rectangle clientBounds)
+        {
+            BuildingEffect.SetPosition(Position);
+            Aim();
+            if (_isMonsterCaptured)
+            {
+                if (IsTowerReadyToBlow(gameTime))
+                {
+                    ResetBlowingCounters(gameTime);
+                    CreateShellSprite();
+                    if (OneTimeShellsCount > 0)
+                    {
+                        CreateShellSpritesForAnotherMonsters(gameTime, clientBounds);
+                    }
+                    if (FireEffect != null)
+                    {
+                        AddFireEffect();
+                    }
+                    _isMonsterCaptured = false;
+                }
+            }
+            BuildingEffect.Update(gameTime);
+            var removingEffects = new List<int>();
+            foreach (SpecialEffect effect in _fireList)
+            {
+                effect.Update(gameTime);
+                if (!effect.IsEnabled)
+                {
+                    removingEffects.Add(_fireList.IndexOf(effect));
+                }
+            }
+            foreach (int index in removingEffects)
+            {
+                _fireList.RemoveAt(index);
+            }
+
+            base.Update(gameTime, clientBounds);
+        }
+
+        private void AddFireEffect()
+        {
+            if (_fireList.Count > 0)
+                _fireList.Last().Depth = 0.9f;
+            _fireList.Add(new SpecialEffect(FireEffect));
+            _fireList.Last().Position = Position;
+            _fireList.Last().Angle = (float) _rotate;
+            _fireList.Last().Run(_game);
+        }
+
+        private void CreateShellSpritesForAnotherMonsters(GameTime gameTime, Rectangle clientBounds)
+        {
+            for (int i = 0; i < OneTimeShellsCount - 1; i++)
+            {
+                if (_detectedMonstersList.Count != 0)
+                {
+                    _shellSpriteList.Add(new ShellSprite(
+                        _shell,
+                        _shellPosition, new Point(_shell.Width, _shell.Height), 0, new Point(0, 0),
+                        new Point(1, 1), new Vector2((float) (_shellFlySpeed), (float) (_shellFlySpeed)), "",
+                        _detectedMonstersList.Last(), Damage, _isArmor, _isIce, _isPoison, _duration, _ratio, DamageRadius,
+                        _monsterSpriteList));
+                    _detectedMonstersList.RemoveAt(_detectedMonstersList.Count - 1);
+                }
+                else
+                    break;
+                _shellSpriteList.ElementAt(_shellSpriteList.Count - 1).Update(gameTime, clientBounds);
+            }
+        }
+
+        private void ResetBlowingCounters(GameTime gameTime)
+        {
+            _blowTimeSinceLastBlow = 0;
+            _lastBlowTime = gameTime.TotalGameTime.TotalMilliseconds;
+        }
+
+        private void CreateShellSprite()
+        {
+            _shellPosition.X = Position.X + (float) (_tower.Width/2*Math.Sin(_rotate));
+            _shellPosition.Y = Position.Y - (float) (_tower.Height/2*Math.Cos(_rotate));
+            _shellSpriteList.Add(new ShellSprite(
+                _shell,
+                _shellPosition, new Point(_shell.Width, _shell.Height), 0, new Point(0, 0),
+                new Point(1, 1), new Vector2((float) (_shellFlySpeed), (float) (_shellFlySpeed)), "",
+                _enemy, Damage, _isArmor, _isIce, _isPoison, _duration, _ratio, DamageRadius, _monsterSpriteList));
+        }
+
+        private bool IsTowerReadyToBlow(GameTime gameTime)
+        {
+            _blowTimeSinceLastBlow = gameTime.TotalGameTime.TotalMilliseconds - _lastBlowTime;
+            return _blowTimeSinceLastBlow >= _towerAttackSpeed;
+        }
+
         private void Aim()
         {
-            // Смотрим, монстр в радиусе обстрела или нет?
             _enemy = null;
             _detectedMonstersList = new List<MonsterSprite>();
             if (_monsterSpriteList.Count == 0)
             {
-                _captureFlag = false;
+                _isMonsterCaptured = false;
                 return;
             }
             float maxDistance = 0;
-            foreach (MonsterSprite s in _monsterSpriteList)
+            foreach (MonsterSprite monster in _monsterSpriteList)
             {
-                double tempD = Math.Sqrt(Math.Pow(Position.X - s.Position.X, 2) + Math.Pow(Position.Y - s.Position.Y, 2));
-                if (tempD <= Radius)
-                    if ((s.Distance > maxDistance))
+                double distanceToMonster = Math.Sqrt(Math.Pow(Position.X - monster.Position.X, 2) +
+                                                     Math.Pow(Position.Y - monster.Position.Y, 2));
+                if (distanceToMonster <= Radius)
+                {
+                    if ((monster.PassedDistance > maxDistance))
                     {
-                        _enemy = s;
-                        maxDistance = s.Distance;
+                        _enemy = monster;
+                        maxDistance = monster.PassedDistance;
                     }
                     else
-                        _detectedMonstersList.Add(s);
+                    {
+                        _detectedMonstersList.Add(monster);
+                    }
+                }
             }
-            // Если враг в зоне поражения
             if (_enemy != null)
             {
-                Vector2 aimVector = new Vector2(_enemy.Position.X - Position.X, _enemy.Position.Y - Position.Y);
-                float aimAngle = (float)Math.Acos((_norma.X * aimVector.X + _norma.Y * aimVector.Y) / (_norma.Length() * aimVector.Length()));
+                var aimVector = new Vector2(_enemy.Position.X - Position.X, _enemy.Position.Y - Position.Y);
+                var aimAngle = (float)Math.Acos((_norma.X * aimVector.X + _norma.Y * aimVector.Y) / (_norma.Length() * aimVector.Length()));
                 if (Position.X > _enemy.Position.X)
                     aimAngle = MathHelper.Pi * 2 - aimAngle;
                 if (aimAngle > _rotate)
@@ -318,69 +411,10 @@ namespace TD
                     _rotate += Math.Min(0.08 * RotateSpeed, aimAngle - _rotate);
 
                 if (Math.Abs(_rotate - aimAngle) < (0.08 * RotateSpeed))
-                    _captureFlag = true;
+                    _isMonsterCaptured = true;
                 else
-                    _captureFlag = false;
+                    _isMonsterCaptured = false;
             }
-        }
-
-        public override void Update(GameTime gameTime, Rectangle clientBounds)
-        {
-            BuildingEffect.SetPosition(Position);
-            Aim();
-            if ((_captureFlag))
-            {
-                _blowTimeSinceLastBlow = gameTime.TotalGameTime.TotalMilliseconds - _lastBlowTime;
-                if (_blowTimeSinceLastBlow >= _towerAttackSpeed)
-                {
-                    _blowTimeSinceLastBlow = 0;
-                    _lastBlowTime = gameTime.TotalGameTime.TotalMilliseconds;
-                    _shellPosition.X = Position.X + (float)(_tower.Width / 2 * Math.Sin(_rotate));
-                    _shellPosition.Y = Position.Y - (float)(_tower.Height / 2 * Math.Cos(_rotate));
-                    _shellSpriteList.Add(new ShellSprite(
-                                _shell,
-                                _shellPosition, new Point(_shell.Width, _shell.Height), 0, new Point(0, 0),
-                                new Point(1, 1), new Vector2((float)(_shellFlySpeed), (float)(_shellFlySpeed)), "",
-                                _enemy, Damage, _isArmor, _isIce, _isPoison, _duration, _ratio, DamageRadius, _monsterSpriteList));
-                    for (int i = 0; i < OneTimeShellsCount - 1; i++)
-                    {
-                        if (_detectedMonstersList.Count != 0)
-                        {
-                            _shellSpriteList.Add(new ShellSprite(
-                                _shell,
-                                _shellPosition, new Point(_shell.Width, _shell.Height), 0, new Point(0, 0),
-                                new Point(1, 1), new Vector2((float)(_shellFlySpeed), (float)(_shellFlySpeed)), "",
-                                _detectedMonstersList.Last(), Damage, _isArmor, _isIce, _isPoison, _duration, _ratio, DamageRadius, _monsterSpriteList));
-                            _detectedMonstersList.RemoveAt(_detectedMonstersList.Count - 1);
-                        }
-                        else
-                            break;
-                        _shellSpriteList.ElementAt(_shellSpriteList.Count - 1).Update(gameTime, clientBounds);
-                    }
-                    if (FireEffect != null)
-                    {
-                        if (_fireList.Count > 0)
-                            _fireList.Last().Depth = 0.9f;
-                        _fireList.Add(new SpecialEffect(FireEffect));
-                        _fireList.Last().Position = Position;
-                        _fireList.Last().Angle = (float)_rotate;
-                        _fireList.Last().Run(_game);
-                    }
-                    _captureFlag = false;
-                }
-            }
-            BuildingEffect.Update(gameTime);
-            List<int> indexList = new List<int>();
-            foreach (SpecialEffect effect in _fireList)
-            {
-                effect.Update(gameTime);
-                if (!effect.IsEnabled)
-                    indexList.Add(_fireList.IndexOf(effect));
-            }
-            foreach (int index in indexList)
-                _fireList.RemoveAt(index);
-
-            base.Update(gameTime, clientBounds);
         }
 
         public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)

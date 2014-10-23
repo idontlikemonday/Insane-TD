@@ -10,7 +10,6 @@ namespace TD
 {
     class Wave
     {
-        public Texture2D Monster { get; set; }
         public List<MonsterSprite> MonsterList { get; set; }
 
         public Wave(Texture2D monster,
@@ -23,7 +22,6 @@ namespace TD
                     int count,
                     List<Vector2> path)
         {
-            this.Monster = monster;
             MonsterList = new List<MonsterSprite>();
             var rand = new Random(DateTime.Today.Millisecond);
             for (int i = 0; i < count; i++)
@@ -51,7 +49,7 @@ namespace TD
                         minIndex = i;
                     }
                 temp.Add(MonsterList[minIndex]);
-                temp.Last().Distance += 7*(temp.Count - 1);
+                temp.Last().PassedDistance += 7*(temp.Count - 1);
                 MonsterList.RemoveAt(minIndex);
             }
             MonsterList = temp;

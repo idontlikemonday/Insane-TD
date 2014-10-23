@@ -115,7 +115,10 @@ namespace TD
                     0.81f);
 
                 if (_level.Waves.Count > 1)
-                    spriteBatch.Draw(_level.Waves[1].Monster,
+                {
+                    var monster = _level.Waves[1].MonsterList.FirstOrDefault();
+                    if (monster != null)
+                        spriteBatch.Draw(monster.TextureImage,
                             new Vector2(950, 590),
                             null,
                             Color.White,
@@ -124,6 +127,7 @@ namespace TD
                             1f,
                             SpriteEffects.None,
                             0.8f);
+                }
 
                 spriteBatch.DrawString(_font,
                    "Количество жизней:",
